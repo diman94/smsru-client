@@ -32,11 +32,11 @@ To use with CLI:
 import hashlib
 import os
 import time
-import urllib
-import urllib2
+import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.error, urllib.parse
 
 
-CONFIG_FILES = ("~/.config/smsru.conf", "/etc/smsru.conf")
+CONFIG_FILES = ("~/.config/smsru.conf", "/etc/mdm/smsru.conf")
 
 SEND_STATUS = {
     100: "Message accepted",
@@ -104,7 +104,8 @@ class Client(object):
         for fn in CONFIG_FILES:
             fn = os.path.expanduser(fn)
             if os.path.exists(fn):
-                raw = file(fn, "rb").read().strip().decode("utf-8")
+                with open(fn, "rb") as f:
+                    raw = f.read().strip().decode("utf-8")
                 items = [[x.strip() for x in line.split("=", 1)] for line in raw.split("\n")]
                 return dict(items)
         return None
@@ -121,12 +122,12 @@ class Client(object):
             if login and password:
                 args["login"] = login
                 args["token"] = self._get_token()
-                args["sig"] = hashlib.md5(password + args["token"]).hexdigest()
+                args["sig"] = hashlib.md5(password.encode() + args["token"].encode()).hexdigest()
                 del args["api_id"]
 
-        url = "http://sms.ru/%s?%s" % (method, urllib.urlencode(args))
+        url = "http://sms.ru/%s?%s" % (method, urllib.parse.urlencode(args))
         # print url
-        res = urllib2.urlopen(url).read().strip().split("\n")
+        res = urllib.request.urlopen(url).read().decode().strip().split("\n")
         if res[0] == "200":
             raise WrongKey("The supplied API key is wrong")
         elif res[0] == "210":
@@ -152,7 +153,7 @@ class Client(object):
         """Sends the message to the specified recipient.  Returns a numeric
         status code, its text description and, if the message was successfully
         accepted, its reference number."""
-        if not isinstance(message, unicode):
+        if not isinstance(message, str):
             raise ValueError("message must be a unicode")
         args = {"to": to, "text": message.encode("utf-8")}
         if "sender" in self.config:
@@ -204,46 +205,47 @@ if __name__ == "__main__":
 
     try:
         if len(sys.argv) == 4 and sys.argv[1] == "send":
-            print Client().send(sys.argv[2], sys.argv[3].decode("utf-8"))
+            print(Client().send(sys.argv[2], sys.argv[3].decode("utf-8")))
             exit(0)
 
         if len(sys.argv) == 4 and sys.argv[1] == "send-test":
-            print Client().send(sys.argv[2], sys.argv[3].decode("utf-8"), test=True)
+            print(Client().send(sys.argv[2], sys.argv[3].decode("utf-8"), test=True))
             exit(0)
 
         elif len(sys.argv) > 2 and sys.argv[1] == "status":
             cli = Client()
             for msgid in sys.argv[2:]:
                 status = cli.status(msgid)
-                print "%s = %s" % (msgid, status)
+                print("%s = %s" % (msgid, status))
             exit(0)
 
         elif len(sys.argv) == 4 and sys.argv[1] == "cost":
             res = Client().cost(sys.argv[2], sys.argv[3].decode("utf-8"))
-            print "Status=%s (%s), cost=%s, length=%s" % res
+            print("Status=%s (%s), cost=%s, length=%s" % res)
             exit(0)
 
         elif len(sys.argv) == 2 and sys.argv[1] == "balance":
-            print Client().balance()
+            print(Client().balance())
             exit(0)
 
         elif len(sys.argv) == 2 and sys.argv[1] == "limit":
-            print Client().limit()
+            print(Client().limit())
             exit(0)
 
         elif len(sys.argv) == 2 and sys.argv[1] == "token":
-            print Client().token()
+            print(Client().token())
             exit(0)
-    except Exception, e:
-        print "ERROR: %s." % e
+    except Exception as e:
+        print("ERROR: %s." % e)
+        print(e.with_traceback(e))
         exit(1)
 
-    print "Usage:"
-    print "  %s balance                   -- show current balance" % sys.argv[0]
-    print "  %s cost number message       -- show message cost" % sys.argv[0]
-    print "  %s limit                     -- show remaining daily message limit" % sys.argv[0]
-    print "  %s send number message       -- send a message" % sys.argv[0]
-    print "  %s send-test number message  -- test sending a message" % sys.argv[0]
-    print "  %s status msgid...           -- check message status" % sys.argv[0]
-    print "  %s token                     -- prints a token" % sys.argv[0]
+    print("Usage:")
+    print("  %s balance                   -- show current balance" % sys.argv[0])
+    print("  %s cost number message       -- show message cost" % sys.argv[0])
+    print("  %s limit                     -- show remaining daily message limit" % sys.argv[0])
+    print("  %s send number message       -- send a message" % sys.argv[0])
+    print("  %s send-test number message  -- test sending a message" % sys.argv[0])
+    print("  %s status msgid...           -- check message status" % sys.argv[0])
+    print("  %s token                     -- prints a token" % sys.argv[0])
     exit(1)
